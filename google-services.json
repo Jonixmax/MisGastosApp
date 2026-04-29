@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "108751069881",
+    "project_id": "gastos-personales-proto",
+    "storage_bucket": "gastos-personales-proto.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:108751069881:android:7f605619f9b98a36223168",
+        "android_client_info": {
+          "package_name": "com.tuusuario.misgastos"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "108751069881-028ccr06e98r8su127or9nas2e3m4fbm.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.tuusuario.misgastos",
+            "certificate_hash": "735b5a92e02eac1a6501e44f19791e58669eef32"
+          }
+        },
+        {
+          "client_id": "108751069881-t8dj11l74j2o0p471j4ugo6ucik10fjl.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB9n4hHmFq3fkw-yjqBpwQYdMLByV5vf9o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "108751069881-t8dj11l74j2o0p471j4ugo6ucik10fjl.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

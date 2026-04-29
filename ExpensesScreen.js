@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, Button, FlatList, StyleSheet, Alert } from 'react-native';
-import { collection, addDoc, query, where, onSnapshot } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
+import { addDoc, collection, onSnapshot, query, where } from 'firebase/firestore';
+import { useEffect, useState } from 'react';
+import { Alert, Button, FlatList, StyleSheet, Text, TextInput, View } from 'react-native';
 import { auth, db } from './firebaseConfig';
 
 export default function ExpensesScreen() {
@@ -10,8 +10,11 @@ export default function ExpensesScreen() {
   const [category, setCategory] = useState('');
   const [expenses, setExpenses] = useState([]);
   const [monthlyTotal, setMonthlyTotal] = useState(0);
+  
+  // Estado para el filtro de categoría
+  const [filterCategory, setFilterCategory] = useState('');
 
-  // Cargar historial de gastos y calcular el total
+  // Hook de efecto para cargar gastos y calcular el total mensual
   useEffect(() => {
     const user = auth.currentUser;
     if (!user) return;
@@ -42,7 +45,7 @@ export default function ExpensesScreen() {
     return () => unsubscribe();
   }, []);
 
-  // Agregar nuevo gasto
+  // Maneja la adición de un nuevo gasto a Firestore
   const handleAddExpense = async () => {
     if (!name || !amount || !category) {
       Alert.alert("Error", "Llena todos los campos.");
@@ -64,41 +67,65 @@ export default function ExpensesScreen() {
     }
   };
 
+  // Filtra los gastos basándose en el estado filterCategory
+  const filteredExpenses = expenses.filter(expense => 
+    expense.category.toLowerCase().includes(filterCategory.toLowerCase())
+  );
+
   return (
     <View style={styles.container}>
-      <Button title="Cerrar Sesión" onPress={() => signOut(auth)} color="#d9534f" />
+      <View style={styles.header}>
+        <Button title="Cerrar Sesión" onPress={() => signOut(auth)} color="#d9534f" />
+      </View>
       
       <Text style={styles.totalText}>Total del Mes: ${monthlyTotal.toFixed(2)}</Text>
 
       <View style={styles.form}>
         <TextInput style={styles.input} placeholder="Nombre del gasto" value={name} onChangeText={setName} />
-        <TextInput style={styles.input} placeholder="Monto" value={amount} onChangeText={setAmount} keyboardType="numeric" />
-        <TextInput style={styles.input} placeholder="Categoría" value={category} onChangeText={setCategory} />
-        <Button title="Agregar Gasto" onPress={handleAddExpense} />
+        <TextInput style={styles.input} placeholder="Monto (ej. 20.50)" value={amount} onChangeText={setAmount} keyboardType="numeric" />
+        <TextInput style={styles.input} placeholder="Categoría (ej. Comida)" value={category} onChangeText={setCategory} />
+        <Button title="Agregar Gasto" onPress={handleAddExpense} color="#007bff" />
       </View>
 
-      <Text style={styles.subtitle}>Historial</Text>
+      <Text style={styles.subtitle}>Historial de Gastos</Text>
+      
+      {/* Campo de entrada para el filtro de categoría */}
+      <TextInput 
+        style={styles.filterInput} 
+        placeholder="🔍 Filtrar por categoría..." 
+        value={filterCategory} 
+        onChangeText={setFilterCategory} 
+      />
+
       <FlatList
-        data={expenses}
+        data={filteredExpenses} // Usamos la lista filtrada en lugar de la lista completa
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
           <View style={styles.expenseItem}>
-            <Text style={styles.expenseName}>{item.name} ({item.category})</Text>
+            <View>
+              <Text style={styles.expenseName}>{item.name}</Text>
+              <Text style={styles.expenseCategory}>{item.category}</Text>
+            </View>
             <Text style={styles.expenseAmount}>${item.amount.toFixed(2)}</Text>
           </View>
         )}
+        ListEmptyComponent={<Text style={styles.emptyText}>No hay gastos para mostrar.</Text>}
       />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, backgroundColor: '#f5f5f5', marginTop: 40 },
-  totalText: { fontSize: 24, fontWeight: 'bold', color: '#28a745', textAlign: 'center', marginVertical: 20 },
-  form: { backgroundColor: '#fff', padding: 15, borderRadius: 10, marginBottom: 20 },
-  input: { borderWidth: 1, borderColor: '#ddd', padding: 10, marginBottom: 10, borderRadius: 5 },
-  subtitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 10 },
-  expenseItem: { backgroundColor: '#fff', padding: 15, borderRadius: 8, marginBottom: 10, flexDirection: 'row', justifyContent: 'space-between' },
-  expenseName: { fontSize: 16, fontWeight: '500' },
-  expenseAmount: { fontSize: 16, color: '#d9534f', fontWeight: 'bold' }
+  container: { flex: 1, padding: 20, backgroundColor: '#f0f4f8', marginTop: 40 },
+  header: { alignItems: 'flex-end', marginBottom: 10 },
+  totalText: { fontSize: 26, fontWeight: 'bold', color: '#28a745', textAlign: 'center', marginBottom: 20 },
+  form: { backgroundColor: '#fff', padding: 15, borderRadius: 12, marginBottom: 20, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 5, elevation: 3 },
+  input: { borderWidth: 1, borderColor: '#e1e5eb', padding: 12, marginBottom: 12, borderRadius: 8, backgroundColor: '#f9fafc' },
+  subtitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 10, color: '#333' },
+  filterInput: { borderWidth: 1, borderColor: '#ccc', padding: 10, marginBottom: 15, borderRadius: 20, backgroundColor: '#fff', fontStyle: 'italic' },
+  expenseItem: { backgroundColor: '#fff', padding: 15, borderRadius: 10, marginBottom: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderLeftWidth: 5, borderLeftColor: '#007bff' },
+  expenseName: { fontSize: 16, fontWeight: 'bold', color: '#333' },
+  expenseCategory: { fontSize: 13, color: '#6c757d', marginTop: 2 },
+  expenseAmount: { fontSize: 18, color: '#d9534f', fontWeight: 'bold' },
+  emptyText: { textAlign: 'center', color: '#888', marginTop: 20, fontStyle: 'italic' }
 });
