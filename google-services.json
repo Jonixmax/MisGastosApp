@@ -7,18 +7,18 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:108751069881:android:7f605619f9b98a36223168",
+        "mobilesdk_app_id": "1:108751069881:android:fdbaa9d71e0c4b62223168",
         "android_client_info": {
-          "package_name": "com.tuusuario.misgastos"
+          "package_name": "com.jonixmax.misgastos"
         }
       },
       "oauth_client": [
         {
-          "client_id": "108751069881-028ccr06e98r8su127or9nas2e3m4fbm.apps.googleusercontent.com",
+          "client_id": "108751069881-tdu5ocfah4nhqa9gm3ebsmene96dtthi.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.tuusuario.misgastos",
-            "certificate_hash": "735b5a92e02eac1a6501e44f19791e58669eef32"
+            "package_name": "com.jonixmax.misgastos",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
           }
         },
         {
