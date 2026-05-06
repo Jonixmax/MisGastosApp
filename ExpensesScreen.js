@@ -1,199 +1,408 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, StyleSheet, Alert, FlatList, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
-import { collection, addDoc, onSnapshot, query, where } from 'firebase/firestore';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, FlatList, ActivityIndicator, ScrollView, Platform } from 'react-native';
 import { signOut } from 'firebase/auth';
-import { db, auth } from './firebaseConfig';
-// Importamos íconos que ya vienen incluidos en Expo
-import { Ionicons, MaterialIcons } from '@expo/vector-icons'; 
+// 1. Agregamos 'deleteDoc' y 'doc' a las importaciones
+import { collection, addDoc, query, where, onSnapshot, deleteDoc, doc } from 'firebase/firestore';
+import { auth, db } from './firebaseConfig';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
+
+const CATEGORIES = ['Comida', 'Transporte', 'Casa', 'Ocio', 'Salud', 'Otros'];
+const MONTHS = ['Todos', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+const getCategoryIcon = (category) => {
+  switch (category) {
+    case 'Comida': return 'fast-food';
+    case 'Transporte': return 'bus';
+    case 'Casa': return 'home';
+    case 'Ocio': return 'game-controller';
+    case 'Salud': return 'medkit';
+    default: return 'cart';
+  }
+};
 
 export default function ExpensesScreen() {
+  const user = auth.currentUser;
+  const displayName = user?.displayName || (user?.email ? user.email.split('@')[0] : 'Usuario');
+
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('');
+  const [expenseDate, setExpenseDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
   const [expenses, setExpenses] = useState([]);
-  const [monthlyTotal, setMonthlyTotal] = useState(0);
-  const [filterCategory, setFilterCategory] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  const [filterCategory, setFilterCategory] = useState('Todos');
+  const currentMonthIndex = new Date().getMonth() + 1;
+  const [filterMonth, setFilterMonth] = useState(MONTHS[currentMonthIndex]);
+  const [showForm, setShowForm] = useState(false);
 
   useEffect(() => {
-    const user = auth.currentUser;
-    if (!user) return;
+    if (!user || !user.uid) {
+      setLoading(false);
+      return;
+    }
 
-    const q = query(collection(db, 'expenses'), where('userId', '==', user.uid));
+    const q = query(collection(db, 'gastos'), where('userId', '==', user.uid));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      let tempExpenses = [];
-      let total = 0;
-      const currentMonth = new Date().getMonth(); 
-
+      const expensesList = [];
       snapshot.forEach((doc) => {
         const data = doc.data();
-        tempExpenses.push({ id: doc.id, ...data });
-        
-        const expenseDate = new Date(data.date);
-        if (expenseDate.getMonth() === currentMonth) {
-          total += parseFloat(data.amount);
-        }
+        expensesList.push({ id: doc.id, ...data });
       });
 
-      tempExpenses.sort((a, b) => new Date(b.date) - new Date(a.date));
-      setExpenses(tempExpenses);
-      setMonthlyTotal(total);
+      expensesList.sort((a, b) => {
+        const dateA = a.date ? a.date.toMillis() : 0;
+        const dateB = b.date ? b.date.toMillis() : 0;
+        return dateB - dateA;
+      });
+
+      setExpenses(expensesList);
+      setLoading(false);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [user]);
+
+  // 2. NUEVA FUNCIÓN: Maneja la eliminación del gasto
+  const handleDeleteExpense = (id) => {
+    Alert.alert(
+      "Eliminar Gasto",
+      "¿Estás seguro de que deseas eliminar este registro? Esta acción no se puede deshacer.",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              // Eliminamos el documento usando su ID único
+              await deleteDoc(doc(db, 'gastos', id));
+            } catch (error) {
+              console.error("Error al eliminar: ", error);
+              Alert.alert("Error", "No se pudo eliminar el gasto.");
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      await GoogleSignin.signOut();
+    } catch (error) {
+      Alert.alert("Error", "Hubo un pequeño problema al cerrar sesión.");
+    }
+  };
+
+  const onChangeDate = (event, selectedDate) => {
+    setShowDatePicker(false);
+    if (selectedDate) {
+      setExpenseDate(selectedDate);
+    }
+  };
 
   const handleAddExpense = async () => {
+    if (!auth.currentUser || !auth.currentUser.uid) {
+      Alert.alert("Sesión perdida", "No se detecta un usuario activo.");
+      return;
+    }
     if (!name || !amount || !category) {
-      Alert.alert("Aviso", "Por favor llena todos los campos 😅");
+      Alert.alert("Campos incompletos", "Por favor ingresa el nombre, monto y selecciona una categoría.");
       return;
     }
 
     try {
-      await addDoc(collection(db, 'expenses'), {
+      await addDoc(collection(db, 'gastos'), {
         userId: auth.currentUser.uid,
         name: name,
         amount: parseFloat(amount),
         category: category,
-        date: new Date().toISOString()
+        date: expenseDate,
       });
 
-      setName(''); setAmount(''); setCategory('');
+      setName('');
+      setAmount('');
+      setCategory('');
+      setExpenseDate(new Date());
+      setShowForm(false);
     } catch (error) {
-      Alert.alert("Error", "No se pudo guardar el gasto.");
+      console.error("Error al guardar: ", error);
+      Alert.alert("Error", "Hubo un problema al guardar el gasto.");
     }
   };
 
-  const filteredExpenses = expenses.filter(expense => 
-    expense.category.toLowerCase().includes(filterCategory.toLowerCase())
-  );
+  // 3. ACTUALIZACIÓN: Agregamos el ícono de eliminar al diseño de cada ítem
+  const renderExpenseItem = ({ item }) => {
+    const fechaGasto = item.date ? item.date.toDate().toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }) : '';
+
+    return (
+      <View style={styles.expenseCard}>
+        {/* Contenedor Izquierdo: Flex 1 para ocupar el espacio restante */}
+        <View style={[styles.expenseInfoRow, { flex: 1 }]}>
+          <View style={styles.iconContainer}>
+            <Ionicons name={getCategoryIcon(item.category)} size={22} color="#4285F4" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.expenseName} numberOfLines={1}>{item.name}</Text>
+            <Text style={styles.expenseCategory}>{item.category} • {fechaGasto}</Text>
+          </View>
+        </View>
+
+        {/* Contenedor Derecho: Alineado a la derecha */}
+        <View style={styles.actionContainer}>
+          <Text style={styles.expenseAmount}>${item.amount.toFixed(2)}</Text>
+          <TouchableOpacity
+            onPress={() => handleDeleteExpense(item.id)}
+            style={styles.deleteBtn}
+            activeOpacity={0.6}
+          >
+            <Ionicons name="trash-outline" size={20} color="#EA4335" />
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
+
+  const filteredExpenses = expenses.filter(expense => {
+    const matchCategory = filterCategory === 'Todos' || expense.category === filterCategory;
+
+    let matchMonth = true;
+    if (filterMonth !== 'Todos') {
+      const targetMonthIndex = MONTHS.indexOf(filterMonth) - 1;
+      if (expense.date) {
+        const expenseDateObj = expense.date.toDate();
+        matchMonth = expenseDateObj.getMonth() === targetMonthIndex;
+      }
+    }
+
+    return matchCategory && matchMonth;
+  });
+
+  const dynamicTotal = filteredExpenses.reduce((suma, gasto) => suma + gasto.amount, 0);
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.container} 
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      {/* HEADER */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>Hola,</Text>
-          <Text style={styles.headerTitle}>Mis Gastos</Text>
-        </View>
-        <TouchableOpacity style={styles.logoutBtn} onPress={() => signOut(auth)}>
-          <Ionicons name="log-out-outline" size={24} color="#FF6B6B" />
-        </TouchableOpacity>
-      </View>
-      
-      {/* TARJETA DEL TOTAL */}
-      <View style={styles.totalCard}>
-        <Text style={styles.totalLabel}>Total del Mes</Text>
-        <Text style={styles.totalText}>${monthlyTotal.toFixed(2)}</Text>
-      </View>
-
-      {/* FORMULARIO */}
-      <View style={styles.formCard}>
-        <View style={styles.inputRow}>
-          <Ionicons name="pricetag-outline" size={20} color="#6C63FF" style={styles.inputIcon} />
-          <TextInput style={styles.input} placeholder="¿En qué gastaste?" value={name} onChangeText={setName} />
-        </View>
-        
-        <View style={styles.row}>
-          <View style={[styles.inputRow, { flex: 1, marginRight: 10 }]}>
-            <MaterialIcons name="attach-money" size={20} color="#6C63FF" style={styles.inputIcon} />
-            <TextInput style={styles.input} placeholder="0.00" value={amount} onChangeText={setAmount} keyboardType="numeric" />
-          </View>
-          <View style={[styles.inputRow, { flex: 1 }]}>
-            <Ionicons name="folder-open-outline" size={20} color="#6C63FF" style={styles.inputIcon} />
-            <TextInput style={styles.input} placeholder="Categoría" value={category} onChangeText={setCategory} />
-          </View>
-        </View>
-
-        <TouchableOpacity style={styles.addButton} onPress={handleAddExpense}>
-          <Ionicons name="add-circle" size={20} color="#FFF" style={{ marginRight: 8 }} />
-          <Text style={styles.addButtonText}>Agregar Gasto</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* FILTRO Y LISTA */}
-      <View style={styles.listHeader}>
-        <Text style={styles.subtitle}>Historial</Text>
-        <View style={styles.searchContainer}>
-          <Ionicons name="search" size={18} color="#A0A0A0" />
-          <TextInput 
-            style={styles.searchInput} 
-            placeholder="Filtrar..." 
-            value={filterCategory} 
-            onChangeText={setFilterCategory} 
-          />
-        </View>
-      </View>
-
+    <View style={styles.container}>
       <FlatList
         data={filteredExpenses}
         keyExtractor={(item) => item.id}
+        renderItem={renderExpenseItem}
         showsVerticalScrollIndicator={false}
-        renderItem={({ item }) => (
-          <View style={styles.expenseItem}>
-            <View style={styles.expenseIconContainer}>
-              <Ionicons name="receipt-outline" size={24} color="#6C63FF" />
+        contentContainerStyle={{ paddingBottom: 30 }}
+        ListHeaderComponent={
+          <View>
+            <View style={styles.header}>
+              <View>
+                <Text style={styles.greetingText}>Bienvenido de vuelta,</Text>
+                <Text style={styles.userName}>{displayName} 👋</Text>
+              </View>
+              <TouchableOpacity onPress={handleLogout} style={styles.logoutIconBtn} activeOpacity={0.7}>
+                <Ionicons name="log-out-outline" size={28} color="#EA4335" />
+              </TouchableOpacity>
             </View>
-            <View style={styles.expenseInfo}>
-              <Text style={styles.expenseName}>{item.name}</Text>
-              <Text style={styles.expenseCategory}>{item.category}</Text>
+
+            <View style={styles.totalCard}>
+              <Ionicons name="wallet-outline" size={40} color="rgba(255,255,255,0.8)" style={styles.walletIcon} />
+              <Text style={styles.totalTitle}>
+                Total {filterMonth !== 'Todos' ? `en ${filterMonth}` : 'Global'}
+              </Text>
+              <Text style={styles.totalAmount}>${dynamicTotal.toFixed(2)}</Text>
             </View>
-            <Text style={styles.expenseAmount}>-${item.amount.toFixed(2)}</Text>
-          </View>
-        )}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Ionicons name="wallet-outline" size={50} color="#D3D3D3" />
-            <Text style={styles.emptyText}>Sin gastos por ahora. ¡Ahorrando!</Text>
+
+            <TouchableOpacity
+              style={styles.accordionBtn}
+              onPress={() => setShowForm(!showForm)}
+              activeOpacity={0.8}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Ionicons name="add-circle" size={24} color="#4285F4" style={{ marginRight: 10 }} />
+                <Text style={styles.accordionBtnText}>
+                  {showForm ? 'Ocultar Formulario' : 'Agregar Nuevo Gasto'}
+                </Text>
+              </View>
+              <Ionicons name={showForm ? "chevron-up" : "chevron-down"} size={24} color="#4285F4" />
+            </TouchableOpacity>
+
+            {showForm && (
+              <View style={styles.formContainer}>
+                <View style={styles.formRow}>
+                  <TextInput style={[styles.input, { flex: 2 }]} placeholder="¿Qué compraste?" placeholderTextColor="#999" value={name} onChangeText={setName} />
+                  <TextInput style={[styles.input, { flex: 1, marginLeft: 10 }]} placeholder="$ Monto" placeholderTextColor="#999" keyboardType="numeric" value={amount} onChangeText={setAmount} />
+                </View>
+
+                <Text style={styles.label}>Fecha del gasto</Text>
+                <TouchableOpacity style={styles.dateBtn} onPress={() => setShowDatePicker(true)} activeOpacity={0.8}>
+                  <Ionicons name="calendar-outline" size={20} color="#555" style={{ marginRight: 10 }} />
+                  <Text style={styles.dateText}>
+                    {expenseDate.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                  </Text>
+                </TouchableOpacity>
+
+                {showDatePicker && (
+                  <DateTimePicker
+                    value={expenseDate}
+                    mode="date"
+                    display="default"
+                    onChange={onChangeDate}
+                    maximumDate={new Date()}
+                  />
+                )}
+
+                <Text style={styles.label}>Categoría</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
+                  {CATEGORIES.map((cat) => (
+                    <TouchableOpacity
+                      key={cat}
+                      activeOpacity={0.8}
+                      style={[styles.categoryBtn, category === cat && styles.categoryBtnActive]}
+                      onPress={() => setCategory(cat)}
+                    >
+                      <Ionicons name={getCategoryIcon(cat)} size={16} color={category === cat ? "#fff" : "#555"} style={{ marginRight: 5 }} />
+                      <Text style={[styles.categoryBtnText, category === cat && styles.categoryBtnTextActive]}>{cat}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+
+                <TouchableOpacity style={styles.saveBtn} onPress={handleAddExpense} activeOpacity={0.8}>
+                  <Ionicons name="checkmark-circle-outline" size={24} color="#fff" style={{ marginRight: 8 }} />
+                  <Text style={styles.saveBtnText}>Guardar Gasto</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            <View style={styles.historyHeader}>
+              <Text style={styles.historyTitle}>Movimientos</Text>
+            </View>
+
+            <View style={{ marginBottom: 10 }}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                {MONTHS.map((mes) => (
+                  <TouchableOpacity
+                    key={`mes-${mes}`}
+                    style={[styles.filterBtn, filterMonth === mes && styles.filterBtnActive]}
+                    onPress={() => setFilterMonth(mes)}
+                  >
+                    <Text style={[styles.filterBtnText, filterMonth === mes && styles.filterBtnTextActive]}>{mes}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+
+            <View style={{ marginBottom: 15 }}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <TouchableOpacity
+                  style={[styles.filterBtn, filterCategory === 'Todos' && styles.filterBtnActive]}
+                  onPress={() => setFilterCategory('Todos')}
+                >
+                  <Text style={[styles.filterBtnText, filterCategory === 'Todos' && styles.filterBtnTextActive]}>Todas las Categorías</Text>
+                </TouchableOpacity>
+                {CATEGORIES.map((cat) => (
+                  <TouchableOpacity
+                    key={`filter-${cat}`}
+                    style={[styles.filterBtn, filterCategory === cat && styles.filterBtnActive]}
+                    onPress={() => setFilterCategory(cat)}
+                  >
+                    <Text style={[styles.filterBtnText, filterCategory === cat && styles.filterBtnTextActive]}>{cat}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
           </View>
         }
+        ListEmptyComponent={
+          loading ? (
+            <ActivityIndicator size="large" color="#4285F4" style={{ marginTop: 30 }} />
+          ) : (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="receipt-outline" size={60} color="#ccc" />
+              <Text style={styles.emptyText}>No hay gastos registrados aquí</Text>
+            </View>
+          )
+        }
       />
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
+// Estilos sin cambios significativos
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F4F6F9', paddingHorizontal: 20, paddingTop: 50 },
-  
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  greeting: { fontSize: 16, color: '#888' },
-  headerTitle: { fontSize: 28, fontWeight: '900', color: '#2B2D42' },
-  logoutBtn: { backgroundColor: '#FFE5E5', padding: 10, borderRadius: 12 },
-
-  totalCard: { 
-    backgroundColor: '#6C63FF', 
-    padding: 25, 
-    borderRadius: 20, 
-    alignItems: 'center', 
-    marginBottom: 20,
-    shadowColor: '#6C63FF', shadowOpacity: 0.4, shadowRadius: 10, shadowOffset: { width: 0, height: 5 }, elevation: 8 
+  container: { flex: 1, paddingHorizontal: 20, paddingTop: 40, backgroundColor: '#F4F6F9' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 25 },
+  greetingText: { fontSize: 14, color: '#888', marginBottom: 2 },
+  userName: { fontSize: 22, color: '#2C3E50', fontWeight: '800' },
+  logoutIconBtn: { padding: 8, backgroundColor: '#FFEBEA', borderRadius: 12 },
+  totalCard: { backgroundColor: '#4285F4', padding: 25, borderRadius: 20, marginBottom: 20, position: 'relative', overflow: 'hidden', shadowColor: '#4285F4', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 8 },
+  walletIcon: { position: 'absolute', right: -10, top: -10, opacity: 0.2, transform: [{ scale: 3 }] },
+  totalTitle: { color: '#E8F0FE', fontSize: 14, fontWeight: '600', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 },
+  totalAmount: { color: 'white', fontSize: 42, fontWeight: '900' },
+  accordionBtn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fff', padding: 18, borderRadius: 16, marginBottom: 15, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
+  accordionBtnText: { fontSize: 16, fontWeight: '700', color: '#2C3E50' },
+  formContainer: { backgroundColor: '#fff', padding: 20, borderRadius: 20, marginBottom: 25, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
+  formRow: { flexDirection: 'row', marginBottom: 15 },
+  input: { backgroundColor: '#F8F9FA', padding: 15, borderRadius: 12, fontSize: 16, color: '#333' },
+  dateBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8F9FA', padding: 15, borderRadius: 12, marginBottom: 20, borderWidth: 1, borderColor: '#E8ECEF' },
+  dateText: { fontSize: 15, color: '#333', textTransform: 'capitalize' },
+  label: { fontSize: 13, color: '#7F8C8D', marginBottom: 10, fontWeight: '700', textTransform: 'uppercase' },
+  categoryScroll: { flexDirection: 'row', marginBottom: 20 },
+  categoryBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0F2F5', paddingVertical: 10, paddingHorizontal: 16, borderRadius: 20, marginRight: 10 },
+  categoryBtnActive: { backgroundColor: '#34A853', shadowColor: '#34A853', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 4 },
+  categoryBtnText: { color: '#555', fontWeight: '700', fontSize: 14 },
+  categoryBtnTextActive: { color: '#fff' },
+  saveBtn: { flexDirection: 'row', backgroundColor: '#2C3E50', padding: 16, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  saveBtnText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
+  historyHeader: { marginBottom: 15 },
+  historyTitle: { fontSize: 20, fontWeight: '800', color: '#2C3E50' },
+  filterBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20, marginRight: 10, backgroundColor: '#fff', borderWidth: 1, borderColor: '#E0E0E0' },
+  filterBtnActive: { backgroundColor: '#4285F4', borderColor: '#4285F4' },
+  filterBtnText: { fontSize: 13, color: '#7F8C8D', fontWeight: '600' },
+  filterBtnTextActive: { color: '#fff', fontWeight: '800' },
+  expenseCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    padding: 12,
+    borderRadius: 16,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1
   },
-  totalLabel: { color: '#E0E0FF', fontSize: 16, marginBottom: 5 },
-  totalText: { color: '#FFF', fontSize: 36, fontWeight: 'bold' },
-
-  formCard: { backgroundColor: '#FFF', padding: 20, borderRadius: 20, marginBottom: 20, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, elevation: 2 },
-  inputRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8F9FA', borderRadius: 12, paddingHorizontal: 15, marginBottom: 15, height: 50 },
-  inputIcon: { marginRight: 10 },
-  input: { flex: 1, fontSize: 16, color: '#333' },
-  row: { flexDirection: 'row', justifyContent: 'space-between' },
-  addButton: { backgroundColor: '#2B2D42', flexDirection: 'row', padding: 15, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginTop: 5 },
-  addButtonText: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
-
-  listHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
-  subtitle: { fontSize: 20, fontWeight: 'bold', color: '#2B2D42' },
-  searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderRadius: 20, paddingHorizontal: 12, height: 35, width: 140 },
-  searchInput: { flex: 1, marginLeft: 5, fontSize: 14 },
-
-  expenseItem: { backgroundColor: '#FFF', padding: 15, borderRadius: 16, marginBottom: 12, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.03, shadowRadius: 5, elevation: 1 },
-  expenseIconContainer: { backgroundColor: '#F0F0FF', padding: 12, borderRadius: 12, marginRight: 15 },
-  expenseInfo: { flex: 1 },
-  expenseName: { fontSize: 16, fontWeight: 'bold', color: '#2B2D42', marginBottom: 4 },
-  expenseCategory: { fontSize: 13, color: '#8D99AE', textTransform: 'uppercase', fontWeight: '600' },
-  expenseAmount: { fontSize: 18, color: '#EF233C', fontWeight: 'bold' },
-
-  emptyContainer: { alignItems: 'center', marginTop: 40 },
-  emptyText: { color: '#A0A0A0', marginTop: 10, fontSize: 16 }
+  expenseInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 10 // Espacio mínimo para que el texto no toque el monto
+  },
+  actionContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    minWidth: 90 // Garantiza que todos los montos se vean alineados verticalmente
+  },
+  deleteBtn: {
+    marginLeft: 12,
+    padding: 4,
+    backgroundColor: '#FFEBEA',
+    borderRadius: 8
+  },
+  expenseName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#2C3E50'
+  },
+  expenseInfoRow: { flexDirection: 'row', alignItems: 'center' },
+  iconContainer: { backgroundColor: '#E8F0FE', padding: 12, borderRadius: 12, marginRight: 15 },
+  expenseName: { fontSize: 16, fontWeight: '700', color: '#2C3E50', marginBottom: 4 },
+  expenseCategory: { fontSize: 13, color: '#95A5A6', fontWeight: '500' },
+  expenseAmount: { fontSize: 18, fontWeight: '900', color: '#E74C3C' },
+  emptyContainer: { alignItems: 'center', justifyContent: 'center', marginTop: 40 },
+  emptyText: { color: '#BDC3C7', fontSize: 16, fontWeight: '600', marginTop: 15 }
 });
