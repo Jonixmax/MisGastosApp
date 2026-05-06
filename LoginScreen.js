@@ -1,23 +1,25 @@
-import React, { useState } from 'react';
-import { View, TextInput, Text, StyleSheet, Alert, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
-import { auth } from './firebaseConfig';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { Ionicons } from '@expo/vector-icons';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithCredential, signInWithEmailAndPassword } from 'firebase/auth';
+import { useState } from 'react';
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { auth } from './firebaseConfig';
 
+// Configuración de credenciales para el inicio de sesión con Google
 GoogleSignin.configure({
   webClientId: '108751069881-t8dj11l74j2o0p471j4ugo6ucik10fjl.apps.googleusercontent.com', 
 });
 
 export default function LoginScreen() {
-  // Estado para alternar entre "Iniciar Sesión" y "Registro"
+  // Control de vista: true para Login, false para Registro
   const [isLogin, setIsLogin] = useState(true);
 
-  // Estados para los campos de texto
+  // Gestión de los inputs del formulario
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState(''); // ¡Nuevo campo para registro!
+  const [confirmPassword, setConfirmPassword] = useState('');
 
+  // Autenticación con correo y contraseña en Firebase
   const handleLogin = async () => {
     if (!email || !password) {
       Alert.alert("Campos vacíos", "Por favor, ingresa tu correo y contraseña.");
@@ -34,13 +36,13 @@ export default function LoginScreen() {
     }
   };
 
+  // Creación de nueva cuenta con validación manual de coincidencia de contraseña
   const handleRegister = async () => {
     if (!email || !password || !confirmPassword) {
       Alert.alert("Campos vacíos", "Por favor, llena todos los campos para registrarte.");
       return;
     }
 
-    // ¡NUEVA VALIDACIÓN PROFESIONAL!
     if (password !== confirmPassword) {
       Alert.alert("Error", "Las contraseñas no coinciden. Verifícalas e intenta de nuevo.");
       return;
@@ -62,6 +64,7 @@ export default function LoginScreen() {
     }
   };
 
+  // Proceso de login con Google: Obtención de token y canje por credencial de Firebase
   const handleGoogleLogin = async () => {
     try {
       await GoogleSignin.hasPlayServices();
@@ -88,7 +91,7 @@ export default function LoginScreen() {
     }
   };
 
-  // Función auxiliar para limpiar los campos al cambiar de pantalla
+  // Resetea los campos al conmutar entre Login y Registro para evitar basura en los estados
   const toggleView = () => {
     setIsLogin(!isLogin);
     setEmail('');
@@ -139,7 +142,7 @@ export default function LoginScreen() {
             />
           </View>
 
-          {/* RENDERIZADO CONDICIONAL PARA EL REGISTRO */}
+          {/* Campo adicional visible solo en el flujo de registro */}
           {!isLogin && (
             <View style={styles.inputContainer}>
               <Ionicons name="checkmark-circle-outline" size={20} color="#888" style={styles.inputIcon} />
@@ -154,7 +157,7 @@ export default function LoginScreen() {
             </View>
           )}
 
-          {/* Botón principal dinámico */}
+          {/* El botón principal cambia su acción según el modo isLogin */}
           <TouchableOpacity 
             style={isLogin ? styles.primaryBtn : styles.registerBtn} 
             onPress={isLogin ? handleLogin : handleRegister} 
@@ -164,7 +167,7 @@ export default function LoginScreen() {
             <Ionicons name={isLogin ? "arrow-forward-outline" : "person-add-outline"} size={20} color="#fff" />
           </TouchableOpacity>
 
-          {/* Solo mostramos el acceso con Google en la pantalla de Iniciar Sesión */}
+          {/* Google Sign-In se ofrece únicamente en la vista de acceso */}
           {isLogin && (
             <>
               <View style={styles.dividerContainer}>
@@ -181,7 +184,7 @@ export default function LoginScreen() {
           )}
         </View>
 
-        {/* Botón secundario para alternar vistas */}
+        {/* Switcher para cambiar de modo */}
         <TouchableOpacity style={styles.secondaryBtn} onPress={toggleView} activeOpacity={0.6}>
           <Text style={styles.secondaryBtnText}>
             {isLogin ? '¿No tienes cuenta? Crea una gratis' : '¿Ya tienes cuenta? Inicia sesión'}

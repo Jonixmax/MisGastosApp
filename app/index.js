@@ -1,26 +1,26 @@
-import React, { useState, useEffect } from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { onAuthStateChanged } from 'firebase/auth';
-// Usamos '../' para salir de la carpeta 'app' y buscar en la carpeta principal
-import { auth } from '../firebaseConfig'; 
-import LoginScreen from '../LoginScreen';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
+// Configuración de Firebase y componentes de pantalla
 import ExpensesScreen from '../ExpensesScreen';
+import { auth } from '../firebaseConfig';
+import LoginScreen from '../LoginScreen';
 
 export default function App() {
+  // Estado para la sesión del usuario y el control de carga inicial
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Firebase verifica automáticamente si ya hay alguien con sesión iniciada
+    // Suscripción al observador de persistencia de autenticación de Firebase
     const unsubscribe = onAuthStateChanged(auth, (authenticatedUser) => {
       setUser(authenticatedUser);
-      setLoading(false); // Apagamos la animación de carga
+      setLoading(false);
     });
 
     return () => unsubscribe();
   }, []);
 
-  // Mientras Firebase verifica, mostramos un círculo de carga
   if (loading) {
     return (
       <View style={styles.center}>
@@ -29,7 +29,7 @@ export default function App() {
     );
   }
 
-  // Magia de React: Si hay usuario, mostramos Gastos. Si no, mostramos Login.
+  // Renderizado condicional según el estado de la sesión
   return user ? <ExpensesScreen /> : <LoginScreen />;
 }
 
