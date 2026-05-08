@@ -4,7 +4,7 @@ import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { signOut } from 'firebase/auth';
 import { addDoc, collection, deleteDoc, doc, onSnapshot, query, where } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Platform } from 'react-native';
 import { auth, db } from './firebaseConfig';
 
 // Constantes para las categorías y meses
@@ -81,29 +81,43 @@ export default function ExpensesScreen() {
   }, [user]);
 
   /**
-   * Elimina un documento de la colección 'gastos' tras confirmar con el usuario.
-   * @param {string} id - ID del documento en Firestore.
-   */
-  const handleDeleteExpense = (id) => {
-    Alert.alert(
-      "Eliminar Gasto",
-      "¿Estás seguro de que deseas eliminar este registro? Esta acción no se puede deshacer.",
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Eliminar",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await deleteDoc(doc(db, 'gastos', id));
-            } catch (error) {
-              console.error("Error deleting expense:", error);
-              Alert.alert("Error", "No se pudo eliminar el gasto.");
+     * Elimina un documento de la colección 'gastos' soportando web y móvil.
+     * @param {string} id - ID del documento en Firestore.
+     */
+  const handleDeleteExpense = async (id) => {
+    // Si estamos en localhost/web usamos la alerta estándar de los navegadores
+    if (Platform.OS === 'web') {
+      const isConfirmed = window.confirm("¿Estás seguro de que deseas eliminar este registro? Esta acción no se puede deshacer.");
+      if (isConfirmed) {
+        try {
+          await deleteDoc(doc(db, 'gastos', id));
+        } catch (error) {
+          console.error("Error deleting expense:", error);
+          window.alert("No se pudo eliminar el gasto.");
+        }
+      }
+    } else {
+      // Si estamos en un celular, usamos la alerta nativa de React Native
+      Alert.alert(
+        "Eliminar Gasto",
+        "¿Estás seguro de que deseas eliminar este registro? Esta acción no se puede deshacer.",
+        [
+          { text: "Cancelar", style: "cancel" },
+          {
+            text: "Eliminar",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                await deleteDoc(doc(db, 'gastos', id));
+              } catch (error) {
+                console.error("Error deleting expense:", error);
+                Alert.alert("Error", "No se pudo eliminar el gasto.");
+              }
             }
           }
-        }
-      ]
-    );
+        ]
+      );
+    }
   };
 
   /**
@@ -264,21 +278,51 @@ export default function ExpensesScreen() {
                 </View>
 
                 <Text style={styles.label}>Fecha del gasto</Text>
-                <TouchableOpacity style={styles.dateBtn} onPress={() => setShowDatePicker(true)} activeOpacity={0.8}>
-                  <Ionicons name="calendar-outline" size={20} color="#555" style={{ marginRight: 10 }} />
-                  <Text style={styles.dateText}>
-                    {expenseDate.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-                  </Text>
-                </TouchableOpacity>
-
-                {showDatePicker && (
-                  <DateTimePicker
-                    value={expenseDate}
-                    mode="date"
-                    display="default"
-                    onChange={onChangeDate}
-                    maximumDate={new Date()}
+                {Platform.OS === 'web' ? (
+                  /* --- CALENDARIO PARA WEB (LOCALHOST) --- */
+                  <input
+                    type="date"
+                    max={new Date().toISOString().split("T")[0]}
+                    value={expenseDate.toISOString().split("T")[0]}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        // Añadimos T12:00:00 para evitar que el cambio de zona horaria atrase un día
+                        setExpenseDate(new Date(e.target.value + "T12:00:00"));
+                      }
+                    }}
+                    style={{
+                      padding: '15px',
+                      borderRadius: '12px',
+                      border: '1px solid #E8ECEF',
+                      marginBottom: '20px',
+                      fontSize: '15px',
+                      color: '#333',
+                      backgroundColor: '#F8F9FA',
+                      width: '100%',
+                      outline: 'none',
+                      fontFamily: 'inherit'
+                    }}
                   />
+                ) : (
+                  /* --- CALENDARIO PARA CELULARES (ANDROID/IOS) --- */
+                  <>
+                    <TouchableOpacity style={styles.dateBtn} onPress={() => setShowDatePicker(true)} activeOpacity={0.8}>
+                      <Ionicons name="calendar-outline" size={20} color="#555" style={{ marginRight: 10 }} />
+                      <Text style={styles.dateText}>
+                        {expenseDate.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                      </Text>
+                    </TouchableOpacity>
+
+                    {showDatePicker && (
+                      <DateTimePicker
+                        value={expenseDate}
+                        mode="date"
+                        display="default"
+                        onChange={onChangeDate}
+                        maximumDate={new Date()}
+                      />
+                    )}
+                  </>
                 )}
 
                 <Text style={styles.label}>Categoría</Text>
@@ -386,12 +430,12 @@ const styles = StyleSheet.create({
   // ==========================================
   accordionBtn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fff', padding: 18, borderRadius: 16, marginBottom: 15, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
   accordionBtnText: { fontSize: 16, fontWeight: '700', color: '#2C3E50' },
-  
+
   formContainer: { backgroundColor: '#fff', padding: 20, borderRadius: 20, marginBottom: 25, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
   formRow: { flexDirection: 'row', marginBottom: 15 },
   input: { backgroundColor: '#F8F9FA', padding: 15, borderRadius: 12, fontSize: 16, color: '#333' },
   label: { fontSize: 13, color: '#7F8C8D', marginBottom: 10, fontWeight: '700', textTransform: 'uppercase' },
-  
+
   dateBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8F9FA', padding: 15, borderRadius: 12, marginBottom: 20, borderWidth: 1, borderColor: '#E8ECEF' },
   dateText: { fontSize: 15, color: '#333', textTransform: 'capitalize' },
 
@@ -409,7 +453,7 @@ const styles = StyleSheet.create({
   // ==========================================
   historyHeader: { marginBottom: 15 },
   historyTitle: { fontSize: 20, fontWeight: '800', color: '#2C3E50' },
-  
+
   filterBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20, marginRight: 10, backgroundColor: '#fff', borderWidth: 1, borderColor: '#E0E0E0' },
   filterBtnActive: { backgroundColor: '#4285F4', borderColor: '#4285F4' },
   filterBtnText: { fontSize: 13, color: '#7F8C8D', fontWeight: '600' },
@@ -423,7 +467,7 @@ const styles = StyleSheet.create({
   iconContainer: { backgroundColor: '#E8F0FE', padding: 12, borderRadius: 12, marginRight: 15 },
   expenseName: { fontSize: 16, fontWeight: '700', color: '#2C3E50', marginBottom: 4 },
   expenseCategory: { fontSize: 13, color: '#95A5A6', fontWeight: '500' },
-  
+
   actionContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', minWidth: 90 },
   expenseAmount: { fontSize: 18, fontWeight: '900', color: '#E74C3C' },
   deleteBtn: { marginLeft: 12, padding: 4, backgroundColor: '#FFEBEA', borderRadius: 8 },

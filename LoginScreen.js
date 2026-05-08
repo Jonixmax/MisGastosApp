@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
-import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithCredential, signInWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithCredential, signInWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
 import { useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { auth } from './firebaseConfig';
@@ -18,20 +18,22 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
 
   // Autenticación con correo y contraseña en Firebase
-  const handleLogin = async () => {
+const handleLogin = async () => {
+    setErrorMsg(''); // Limpiar errores previos
     if (!email || !password) {
-      Alert.alert("Campos vacíos", "Por favor, ingresa tu correo y contraseña.");
+      setErrorMsg("Por favor, ingresa tu correo y contraseña.");
       return;
     }
     try {
       await signInWithEmailAndPassword(auth, email, password);
     } catch (error) {
       if (error.code === 'auth/invalid-email') {
-        Alert.alert("Error", "El formato del correo electrónico no es válido.");
+        setErrorMsg("El formato del correo electrónico no es válido.");
       } else {
-        Alert.alert("Error", "Correo o contraseña incorrectos.");
+        setErrorMsg("Correo o contraseña incorrectos."); // <-- Mensaje de error
       }
     }
   };
@@ -64,39 +66,57 @@ export default function LoginScreen() {
     }
   };
 
-  // Proceso de login con Google: Obtención de token y canje por credencial de Firebase
+// Proceso de login con Google: Soporte híbrido (Web y Nativo)
   const handleGoogleLogin = async () => {
     try {
-      await GoogleSignin.hasPlayServices();
-      const userInfo = await GoogleSignin.signIn();
-      
-      let idToken = null;
-      if (userInfo.idToken) {
-        idToken = userInfo.idToken; 
-      } else if (userInfo.data && userInfo.data.idToken) {
-        idToken = userInfo.data.idToken; 
-      }
+      if (Platform.OS === 'web') {
+        // ==========================================
+        // LÓGICA PARA NAVEGADORES WEB (LOCALHOST)
+        // ==========================================
+        const provider = new GoogleAuthProvider();
+        // signInWithPopup abre la clásica ventana emergente de Google en el navegador
+        await signInWithPopup(auth, provider);
+        
+      } else {
+        // ==========================================
+        // LÓGICA PARA CELULARES (ANDROID/IOS)
+        // ==========================================
+        await GoogleSignin.hasPlayServices();
+        const userInfo = await GoogleSignin.signIn();
+        
+        let idToken = null;
+        if (userInfo.idToken) {
+          idToken = userInfo.idToken; 
+        } else if (userInfo.data && userInfo.data.idToken) {
+          idToken = userInfo.data.idToken; 
+        }
 
-      if (!idToken) {
-        Alert.alert("Error", "Google no devolvió el idToken.");
-        return;
-      }
+        if (!idToken) {
+          Alert.alert("Error", "Google no devolvió el idToken.");
+          return;
+        }
 
-      const googleCredential = GoogleAuthProvider.credential(idToken);
-      await signInWithCredential(auth, googleCredential);
+        const googleCredential = GoogleAuthProvider.credential(idToken);
+        await signInWithCredential(auth, googleCredential);
+      }
 
     } catch (error) {
-      console.log(error);
-      Alert.alert("Error de Google", "No se pudo iniciar sesión");
+      console.log("Error en login de Google:", error);
+      if (Platform.OS === 'web') {
+        window.alert("Error de Google: No se pudo iniciar sesión o se cerró la ventana.");
+      } else {
+        Alert.alert("Error de Google", "No se pudo iniciar sesión");
+      }
     }
   };
 
-  // Resetea los campos al conmutar entre Login y Registro para evitar basura en los estados
+  // Resetea los campos
   const toggleView = () => {
     setIsLogin(!isLogin);
     setEmail('');
     setPassword('');
     setConfirmPassword('');
+    setErrorMsg(''); 
   };
 
   return (
@@ -156,6 +176,14 @@ export default function LoginScreen() {
               />
             </View>
           )}
+
+          {/* TEXTO DE ERROR VISUAL */}
+          {errorMsg !== '' && (
+            <Text style={{color: '#EA4335', textAlign: 'center', marginBottom: 15, fontWeight: '700'}}>
+              {errorMsg}
+            </Text>
+          )}
+          
 
           {/* El botón principal cambia su acción según el modo isLogin */}
           <TouchableOpacity 
