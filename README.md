@@ -126,10 +126,10 @@ El documento oficial del proyecto está disponible en el repositorio:
 
 ## 👤 Autor
 
-**Jonathan Alexander Alberto, AC200739**
-**Christian Geovanni Centeno, CS241743**    
-**José Alexander Montoya, MQ252529** 
-**Gabriel Quintanilla Rodríguez, QR230082**
+- 👤 **Jonathan Alexander Alberto** — AC200739
+- 👤 **Christian Geovanni Centeno** — CS241743
+- 👤 **José Alexander Montoya** — MQ252529
+- 👤 **Gabriel Quintanilla Rodríguez** — QR230082
 
 ---
 
