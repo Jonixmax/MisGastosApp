@@ -133,6 +133,4 @@ El documento oficial del proyecto está disponible en el repositorio:
 
 ---
 
-## 📄 Licencia
 
-Este proyecto está bajo la licencia **MIT**. Consulta el archivo `LICENSE` para más detalles.
