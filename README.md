@@ -15,7 +15,8 @@ Una aplicación móvil robusta para la **gestión de finanzas personales**. Dise
 - [🏗️ Arquitectura](#️-arquitectura-y-estructura-del-código)
 - [🛠️ Stack Tecnológico](#️-stack-tecnológico)
 - [🚀 Instalación](#-guía-de-instalación-y-despliegue)
-
+- [🎬 Demo en Video](#-demo-en-video)
+- [📄 Documentación](#-documentación)
 
 ---
 
@@ -107,4 +108,31 @@ npx expo start --clear
 
 ---
 
+## 🎬 Demo en Video
 
+Haz clic en la miniatura para ver la demo completa de la aplicación:
+
+[![Ver Demo en YouTube](https://img.youtube.com/vi/dNHF8cfnV-0/0.jpg)](https://youtu.be/dNHF8cfnV-0)
+
+---
+
+## 📄 Documentación
+
+El documento oficial del proyecto está disponible en el repositorio:
+
+📎 [Ver Documentación — DPS_MiGastosAPP.docx.pdf](./DPS_MiGastosAPP.docx.pdf)
+
+---
+
+## 👤 Autor
+
+**Jonathan Alexander Alberto, AC200739**
+**Christian Geovanni Centeno, CS241743**    
+**José Alexander Montoya, MQ252529** 
+**Gabriel Quintanilla Rodríguez, QR230082**
+
+---
+
+## 📄 Licencia
+
+Este proyecto está bajo la licencia **MIT**. Consulta el archivo `LICENSE` para más detalles.
